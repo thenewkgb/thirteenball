@@ -377,8 +377,8 @@ void Game::touchingBall(int i)
             handleHighlight(x);
             //totalSum.clear();
             //locations.clear();
-            //arrangeTotal();
         }
+        arrangeTotal();
     }
 }
 
