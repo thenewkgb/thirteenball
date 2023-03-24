@@ -1,0 +1,677 @@
+/*
+totalSum accessed from two methods?
+
+possibly add a different action with spares
+
+*/
+
+#include <SDL2/SDL.h>
+#include <SDL2/SDL_image.h>
+#include <vector>
+#include <iostream>
+#include <stdexcept>
+
+#define BALLSIZE 120
+#define ROWONESIZE 3
+#define ROWTWOSIZE 4
+#define ROWTHREESIZE 5
+#define ROWFOURSIZE 6
+#define SPARESMAXNUM 10
+
+struct Ball : SDL_Rect
+{
+    int x = 0;
+    int y = 0;
+    int w = BALLSIZE;
+    int h = BALLSIZE;
+    int value;
+    bool show = true;
+    bool highlighted = false;
+    SDL_Texture *texture = NULL;
+    
+    // spares
+    // if i'm still using colour tints
+    // then remember colour
+    int r = 0;
+    int g = 0;
+    int b = 0;
+};
+
+struct EmptyBall : SDL_Rect
+{
+    int x = 0;
+    int y = 0;
+    int w = 0;
+    int h = 0;
+    int value = 0;
+};
+
+struct Table
+{
+    std::vector<Ball> balls{};
+    std::vector<Ball> spares{};
+    SDL_Texture* backgroundimg = nullptr;
+};
+
+class Game
+{
+  public:
+    Game()
+    {
+    }
+
+    SDL_Renderer *renderer;
+    SDL_Window *window;
+    SDL_Event e{};
+    SDL_TouchFingerEvent f;
+
+    SDL_Rect quitButton{};
+    SDL_Rect reRackButton{};
+    SDL_Rect spareButton{};
+    SDL_Rect sparesPos{};
+    SDL_Rect touch{};
+    SDL_Rect background{};
+    
+    Table table{};
+
+    // some miscellanious vars
+    int sw, sh;
+    unsigned int currentSpare = 0;
+    unsigned int sparesLeft = 10;
+    bool isQuit{};
+    bool lastSpare {false};
+    
+    std::vector<int> totalSum{};
+    std::vector<int> locations{};
+
+    int init();
+    void setupTable();
+    void loadGFX();
+
+    bool canClick(int i);
+    //
+    // reference hack
+    //
+    //void highlight(int i);
+    //void deselect(int i);
+    //void handleHighlight(int i);
+    void highlight(int i, std::vector<Ball> &vec);
+    void deselect(int i, std::vector<Ball> &vec);
+    void handleHighlight(int i, std::vector<Ball> &vec);
+    void createEmpty(int i);
+    void touchingBall(int i);
+
+    void arrangeTotal();
+    void replaceEmpty();
+    int findLocation(int value, std::vector<int> v);
+
+    bool totalThirteen();
+    
+    void loopSpares();
+    void colourSpares();
+    void handleSpare();
+    void includeSpare();
+    
+    void colourBalls();
+
+    void clearValues();
+    void beginBoard();
+    void updateScreen();
+    void checkInput();
+
+    void quit();
+};
+
+// Function for loading an image to SDL_Texture
+static SDL_Texture *loadImage(SDL_Renderer *renderer, const char *path)
+{
+    SDL_Surface *img = IMG_Load(path);
+    if (img == NULL)
+    {
+        fprintf(stderr, "IMG_Load Error: %s\n", IMG_GetError());
+        return NULL;
+    }
+    SDL_Texture *texture = SDL_CreateTextureFromSurface(renderer, img);
+    SDL_FreeSurface(img);
+    if (texture == NULL)
+    {
+        fprintf(stderr, "SDL_CreateTextureFromSurface Error: %s\n", SDL_GetError());
+        return NULL;
+    }
+    return texture;
+}
+
+int Game::init()
+{
+    if (SDL_Init(SDL_INIT_EVERYTHING) != 0)
+    {
+        return -1;
+    }
+
+    window = SDL_CreateWindow("Hello SDL2", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, 640, 480, 0);
+    if (window == NULL)
+    {
+        return -1;
+    }
+
+    renderer = SDL_CreateRenderer(window, -1, 0);
+
+    SDL_GetRendererOutputSize(renderer, &sw, &sh);
+
+    srand(time(0));
+
+    return 0;
+}
+
+void Game::quit()
+{
+    SDL_DestroyRenderer(renderer);
+    SDL_DestroyWindow(window);
+    SDL_Quit();
+}
+
+void Game::beginBoard()
+{
+    clearValues();
+    loadGFX();
+    setupTable();
+    updateScreen();
+}
+
+void Game::clearValues()
+{
+    if(table.backgroundimg != NULL)
+        SDL_DestroyTexture(table.backgroundimg);
+    
+    for(int i = 0;i < table.balls.size();++i)
+    {
+        if(table.balls[i].texture != NULL)
+            SDL_DestroyTexture(table.balls[i].texture);
+    }
+    
+    for(int i = 0; i < table.spares.size();++i)
+    {
+        if(table.spares[i].texture != NULL)
+            SDL_DestroyTexture(table.spares[i].texture);
+    }
+    
+    table.balls.clear();
+    table.spares.clear();
+    totalSum.clear();
+    locations.clear();
+}
+
+void Game::createEmpty(int i)
+{
+    table.balls[i].w = 0;
+    table.balls[i].h = 0;
+    table.balls[i].show = false;
+    SDL_DestroyTexture(table.balls[i].texture);
+    table.balls[i].texture = nullptr;
+}
+
+void Game::loadGFX()
+{
+    // quit stuff
+    quitButton.x = 400;
+    quitButton.y = 150;
+    quitButton.w = 200;
+    quitButton.h = 100;
+
+    reRackButton.x = 100;
+    reRackButton.y = 150;
+    reRackButton.w = 200;
+    reRackButton.h = 100;
+    
+    spareButton.x = 400;
+    spareButton.y = (sh/2) + 300;
+    spareButton.w = 200;
+    spareButton.h = 100;
+    
+    sparesPos.x = 200;
+    sparesPos.y = (sh/2) + 300;
+    sparesPos.w = BALLSIZE;
+    sparesPos.h = BALLSIZE;
+    
+    background.x = 0;
+    background.y = 0;
+    background.w = sw;
+    background.h = sh;
+}
+
+void Game::colourBalls()
+{
+    for(int i = 0; i < table.balls.size();++i)
+    {
+        int r = 100 + (rand() % 150);
+        int g = 100 + (rand() % 150);
+        int b = 100 + (rand() % 150);
+        
+        SDL_SetTextureColorMod(table.balls[i].texture, r, g, b);
+    }
+}
+
+void Game::colourSpares()
+{
+    for(int i = 0; i < SPARESMAXNUM;++i)
+    {
+        int r = 100 + (rand() % 150);
+        int g = 100 + (rand() % 150);
+        int b = 100 + (rand() % 150);
+        
+        SDL_SetTextureColorMod(table.spares[i].texture, r, g, b);
+    }
+}
+
+void Game::highlight(int i, std::vector<Ball> &vec)
+//void Game::highlight(int i)
+{
+    SDL_SetTextureColorMod(vec[i].texture, 200, 200, 255);
+    vec[i].highlighted = true;
+}
+
+void Game::deselect(int i, std::vector<Ball> &vec)
+//void Game::deselect(int i)
+{
+    SDL_SetTextureColorMod(vec[i].texture, 255, 255, 255);
+    vec[i].highlighted = false;
+}
+
+void Game::handleHighlight(int i, std::vector<Ball> &vec)
+//void Game::handleHighlight(int i)
+{
+    //if (!table.balls[i].highlighted)
+    if(!vec[i].highlighted)
+    {
+        //highlight(i);
+        highlight(i, vec);
+    }
+    else
+    {
+        //deselect(i);
+        deselect(i, vec);
+    }
+}
+
+//
+// if we press spareButton
+// don't include the last one
+// that they highlighted, if any
+//'
+void Game::handleSpare()
+{
+    
+}
+
+//
+// but remember what colour
+//
+void Game::includeSpare()
+{
+    handleHighlight(currentSpare, table.spares);
+    //totalSum.push_back(table.spares[currentSpare].value)
+    
+    // when switching spare i must
+    // deselect it
+    
+    // i'd need i'
+}
+
+void Game::loopSpares()
+{
+    ++currentSpare;
+    if(currentSpare>=sparesLeft)
+    {
+        currentSpare=0;
+        //lastSpare = true;
+    }
+        
+    handleSpare();
+}
+
+void Game::setupTable()
+{
+    // bkgrd
+    std::string s = "thirteen_backimg3.png";
+    table.backgroundimg = loadImage(renderer, s.c_str());
+    
+    // positions
+    for (int i = 2; i > -1; --i)
+    {
+        int x = (sw / 2) + (120 * i) - 180;
+        Ball temp;
+        temp.x = x;
+        temp.y = (sh / 2) - 180;
+        //table.rowOfThree.push_back(temp);
+        table.balls.push_back(temp);
+    }
+
+    for (int i = 2; i > -2; --i)
+    {
+        int x = (sw / 2) + (120 * i) - 120;
+        Ball temp;
+        temp.x = x;
+        temp.y = (sh / 2) - 120;
+        table.balls.push_back(temp);
+        //table.rowOfFour.push_back(temp);
+    }
+
+    for (int i = 2; i > -3; --i)
+    {
+        int x = (sw / 2) + (120 * i) - 60;
+        Ball temp;
+        temp.x = x;
+        temp.y = (sh / 2) - 60;
+        table.balls.push_back(temp);
+        //table.rowOfFive.push_back(temp);
+    }
+
+    for (int i = 2; i > -4; --i)
+    {
+        int x = (sw / 2) + (120 * i);
+        Ball temp;
+        temp.x = x;
+        temp.y = (sh / 2);
+        table.balls.push_back(temp);
+        //table.rowOfSix.push_back(temp);
+    }
+
+    // randomly place numbers 1 to 13
+    // into table
+    // as we have their positions sorted
+    //
+    // we need separate textures
+    // for each ball
+
+    for (int i = 0; i < table.balls.size(); ++i)
+    {
+        int randvalue = 1 + (rand() % 12);
+
+        SDL_Texture *tempTex{};
+        std::string s{};
+        s+="ballB"; // prefix
+        s += std::to_string(randvalue) + ".png";
+        tempTex = loadImage(renderer, s.c_str());
+        table.balls[i].value = randvalue;
+        table.balls[i].texture = tempTex;
+    }
+    
+    // create spare balls
+    for(int i=0; i < SPARESMAXNUM; ++i)
+    {
+        int randvalue = 1 + (rand() % 12);
+        SDL_Texture *tempTex{};
+        std::string s{};
+        s += std::to_string(randvalue) + ".png";
+        tempTex = loadImage(renderer, s.c_str());
+        
+        Ball tempBall{};
+        tempBall.texture = tempTex;
+        tempBall.value = randvalue;
+        table.spares.push_back(tempBall);
+    }
+    
+        // add some more variation
+        colourSpares();
+        colourBalls();
+}
+
+bool Game::canClick(int i)
+{
+    // i >= 0 && i < 3
+    if (i >= 0 && i < ROWONESIZE)
+    {
+        if (table.balls[i + ROWONESIZE].show == false &&
+            table.balls[i + ROWONESIZE + 1].show == false)
+        {
+            return true;
+        }
+    }
+
+    // i >= 3 && i < 7
+    else if (i >= ROWONESIZE && i < ROWTWOSIZE + ROWONESIZE)
+    {
+        if (table.balls[i + ROWTWOSIZE].show == false && table.balls[i + ROWTWOSIZE + 1].show == false)
+        {
+            return true;
+        }
+    }
+
+    // i >= 7 && i < 12
+    else if (i >= ROWONESIZE + ROWTWOSIZE && i < ROWTHREESIZE + ROWTWOSIZE + ROWONESIZE)
+    {
+        if (table.balls[i + ROWTHREESIZE].show == false && table.balls[i + ROWTHREESIZE + 1].show == false)
+        {
+            return true;
+        }
+    }
+    else if (i >= ROWTHREESIZE + ROWTWOSIZE + ROWONESIZE && i < ROWFOURSIZE + ROWTHREESIZE + ROWTWOSIZE + ROWONESIZE)
+    {
+        return true;
+    }
+
+    else
+    {
+        return false;
+    }
+}
+
+bool Game::totalThirteen()
+{
+    int total = 0;
+
+    for (int t : totalSum)
+        total += t;
+        
+    // spares here?
+
+    if (total == 13)
+    {
+        return true;
+    }
+
+    return false;
+}
+
+int Game::findLocation(int value, std::vector<int> v)
+{
+    // search vector for same number
+    for (int i = 0; i < v.size(); ++i)
+    {
+        if (value == v[i])
+            return i;
+    }
+    return -1;
+}
+
+void Game::arrangeTotal()
+{
+    for (int i = 0; i < table.balls.size(); ++i)
+    {
+        // do not push if ball location already present
+        if (table.balls[i].highlighted)
+        {
+            int loc = findLocation(i, locations);
+            // if there is no location
+            if (loc == -1)
+            {
+                totalSum.push_back(table.balls[i].value);
+                locations.push_back(i);
+            }
+        }
+
+        if (!table.balls[i].highlighted)
+        {
+            int loc = findLocation(i, locations);
+            // did find something
+            if (loc > -1)
+            {
+                totalSum.erase(totalSum.begin() + loc);
+                locations.erase(locations.begin() + loc);
+            }
+        }
+    }
+    //
+    // spares?
+    //
+}
+
+void Game::touchingBall(int i)
+{
+    if (canClick(i))
+    {
+        //handleHighlight(i);
+        handleHighlight(i, table.balls);
+        arrangeTotal();
+    }
+
+    if (totalThirteen())
+    {
+        for (int x : locations)
+        {
+            createEmpty(x);
+            //handleHighlight(x);
+            handleHighlight(x, table.balls);
+            //totalSum.clear();
+            //locations.clear();
+        }
+        arrangeTotal();
+    }
+}
+
+void Game::checkInput()
+{
+    while (SDL_PollEvent(&e) != 0)
+    {
+        //User touches screen
+        if (e.type == SDL_FINGERUP)
+        {
+           // updateScreen();
+            
+            f = e.tfinger;
+            touch.x = f.x * sw;
+            touch.y = f.y * sh;
+            touch.w = 1;
+            touch.h = 1;
+
+            for (int i = 0; i < table.balls.size(); ++i)
+            {
+                SDL_Rect B{};
+                B.x = table.balls[i].x;
+                B.y = table.balls[i].y;
+                B.w = table.balls[i].w;
+                B.h = table.balls[i].h;
+
+                if (SDL_HasIntersection(&touch, &B))
+                {
+                    touchingBall(i);
+                }
+            }
+
+            if (SDL_HasIntersection(&touch, &reRackButton))
+            {
+                beginBoard();
+            }
+            
+            if(SDL_HasIntersection(&touch, &spareButton))
+            {
+                loopSpares();
+            }
+            
+            if(SDL_HasIntersection(&touch, &sparesPos))
+            {
+                includeSpare();
+            }
+
+            if (SDL_HasIntersection(&touch, &quitButton))
+            {
+                isQuit = true;
+            }
+            
+            updateScreen();
+        }
+    }
+}
+
+void Game::updateScreen()
+{
+    SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
+    SDL_RenderClear(renderer);
+    
+    // first background
+    SDL_RenderCopy(renderer, table.backgroundimg, NULL, &background);
+
+    // pop a load of balls on screen
+    for (int i = 0; i < table.balls.size(); ++i)
+    {
+        // convert Ball to Rect
+        // RenderCopy needs Rect
+        SDL_Rect dest;
+        dest.x = table.balls[i].x;
+        dest.y = table.balls[i].y;
+        dest.w = table.balls[i].w;
+        dest.h = table.balls[i].h;
+
+        if (table.balls[i].show == true)
+        {
+            SDL_RenderCopy(renderer, table.balls[i].texture, NULL, &dest);
+        }
+    }
+    
+    // display current spare
+    SDL_RenderCopy(renderer, table.spares[currentSpare].texture, NULL, &sparesPos);
+    
+    // quit button
+    SDL_SetRenderDrawColor(renderer, 255, 0, 0, 255);
+    SDL_RenderFillRect(renderer, &quitButton);
+    // play again button
+    SDL_SetRenderDrawColor(renderer, 255, 255, 0, 255);
+    SDL_RenderFillRect(renderer, &reRackButton);
+    // spare ball
+    SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
+    SDL_RenderFillRect(renderer, &spareButton);
+        // display
+    SDL_RenderPresent(renderer);
+}
+
+/*
+each reRack loads textures but does not
+free them
+the program slows down consideribly
+after about 10 plays
+if textures are not destroyed
+*/
+
+int main(int argc, char *argv[])
+{
+    Game game{};
+
+    if (game.init() != 0)
+    {
+        return -1;
+    }
+    else
+    {
+        game.beginBoard();
+    }
+    
+    // pre update
+    game.updateScreen();
+    
+    std::exception e{};
+
+try
+{
+    while (!game.isQuit)
+    {
+        game.checkInput();
+    }
+}
+catch(std::exception &e)
+{
+    SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, "blank", SDL_GetError(), 0);
+}
+
+    game.quit();
+    return 0;
+}
