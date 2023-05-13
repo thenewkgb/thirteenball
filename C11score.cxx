@@ -732,6 +732,7 @@ void Game::setupTable()
         int randvalue = 1 + (rand() % 12);
         SDL_Texture *tempTex{};
         std::string s{};
+        s+="gfx/ballB";
         s += std::to_string(randvalue) + ".png";
         tempTex = loadImage(renderer, s.c_str());
 
@@ -740,6 +741,12 @@ void Game::setupTable()
         tempBall.value = randvalue;
         table.spares.push_back(tempBall);
     }
+    
+    // add some more variation
+    /*
+        colourSpares();
+        colourBalls();
+    */
 
     //
     // load score digits 1...10
@@ -754,12 +761,6 @@ void Game::setupTable()
         tempT.fontTexture = loadImage(renderer, s.c_str());
         table.fonts.push_back(tempT);
     }
-
-    // add some more variation
-    /*
-        colourSpares();
-        colourBalls();
-    */
 }
 
 bool Game::canClick(int i)
@@ -1007,13 +1008,14 @@ int main(int argc, char *argv[])
     {
         return -1;
     }
-    /*
-    no music at the moment
     
     else if (game.loadGameMusic() != 0)
     {
         return -1;
     }
+    /*
+    no sfx at the moment
+    
     else if (game.loadGameSFX() != 0)
     {
         return -1;
