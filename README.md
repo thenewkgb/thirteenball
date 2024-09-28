@@ -1,6 +1,7 @@
 # thirteenball
 Classic pub game found in drinking establishments.
 
-Latest: C11Score.cxx
+Latest:
+In src/ is the most recent cpp file.
 
-Code is made available "as is" with no licence. Any use of this code on your part is not my responsibility. As a beginner in C++, I am not experienced enough to make error free code.
+I use Cxxdroid on Android and CMake does a great job running this program.
