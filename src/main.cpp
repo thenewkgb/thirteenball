@@ -337,7 +337,7 @@ int Game::loadGameSFX()
 	click = loadSound(s.c_str());
 
 	std::string s2{};
-	s2 = "sfx/exit.wav";
+	s2 = "sfx/exitLow.wav";
 	win = loadSound(s2.c_str());
 
 	if (click == NULL || win == NULL)
