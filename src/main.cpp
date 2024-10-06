@@ -94,6 +94,10 @@ int main(int argc, char *argv[])
 {
 	Game game{};
 
+ // please remove if(true) throw from game.cpp loadSFX()
+ // i tested some exceptions and realised i
+ // did not include loading methods in try block
+
 	// prepare for game or fail
 	if (game.init() != 0)
 	{
