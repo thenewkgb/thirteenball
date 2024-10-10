@@ -26,12 +26,6 @@ int Game::loadGameMusic()
 
 int Game::loadGameSFX()
 {
-	if(true)
-	{
-		quit();
-		throw RunError{};
-	}
-	
 	std::string s{};
 	//s = "sfx/click3.wav";
 	s = "sfx/bleep24Stereo.wav";
@@ -224,16 +218,16 @@ void Game::beginBoard()
 void Game::setupTable()
 {
 	// bkgrd
-	std::string s = "gfx/thirteen_backimg3.png";
+	std::string s = "gfx/background.png";
 	table.backgroundimg = loadImage(renderer, s.c_str());
 	// reRack
-	std::string r = "gfx/thirteenRack.png";
+	std::string r = "gfx/rerack.png";
 	table.reRackimg = loadImage(renderer, r.c_str());
 	// quit
-	std::string q = "gfx/thirteenQuit.png";
+	std::string q = "gfx/quit.png";
 	table.quitimg = loadImage(renderer, q.c_str());
 	// loop spares
-	std::string t = "gfx/turnball2.png";
+	std::string t = "gfx/turn_spare.png";
 	table.turnballimg = loadImage(renderer, t.c_str());
 
 	//

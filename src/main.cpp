@@ -143,6 +143,7 @@ int main(int argc, char *argv[])
 		return 2;
 	}
 
-	game.quit();
+	// now quit in deconstructor
+	//game.quit();
 	return 0;
 }
