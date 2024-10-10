@@ -23,6 +23,10 @@ class Game
 		// debug
 		test_rects.resize(18);
 	}
+	~Game()
+	{
+		quit();
+	}
 
 	// sdl
 	SDL_Renderer *renderer;
